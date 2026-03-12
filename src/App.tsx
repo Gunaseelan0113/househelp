@@ -21,7 +21,10 @@ import {
   ArrowLeft,
   Trash2,
   Edit2,
-  Languages
+  Languages,
+  LogIn,
+  LogOut,
+  Lock
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { format, isAfter, isBefore, addDays, startOfMonth, endOfMonth, getDay, getDate, getMonth, getYear } from 'date-fns';
@@ -35,19 +38,32 @@ function cn(...inputs: ClassValue[]) {
 
 // --- Components ---
 
-const Layout = ({ children, lang, setLang }: { children: React.ReactNode, lang: Language, setLang: (l: Language) => void }) => {
+const Layout = ({ children, lang, setLang, user, onLogout }: { children: React.ReactNode, lang: Language, setLang: (l: Language) => void, user: any, onLogout: () => void }) => {
   const t = translations[lang];
+  if (!user) return <>{children}</>;
+
   return (
     <div className="min-h-screen bg-stone-50 text-stone-900 font-sans pb-20">
       <header className="bg-white border-b border-stone-200 sticky top-0 z-10 px-4 py-3 flex justify-between items-center">
-        <h1 className="text-xl font-bold tracking-tight text-emerald-800">HouseHelp</h1>
-        <button 
-          onClick={() => setLang(lang === 'en' ? 'ta' : 'en')}
-          className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-stone-100 text-sm font-medium hover:bg-stone-200 transition-colors"
-        >
-          <Languages size={16} />
-          {lang === 'en' ? 'தமிழ்' : 'English'}
-        </button>
+        <div className="flex items-center gap-2">
+          <h1 className="text-xl font-bold tracking-tight text-emerald-800">HouseHelp</h1>
+        </div>
+        <div className="flex items-center gap-3">
+          <button 
+            onClick={() => setLang(lang === 'en' ? 'ta' : 'en')}
+            className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-stone-100 text-sm font-medium hover:bg-stone-200 transition-colors"
+          >
+            <Languages size={16} />
+            {lang === 'en' ? 'தமிழ்' : 'English'}
+          </button>
+          <button 
+            onClick={onLogout}
+            className="p-2 text-stone-400 hover:text-rose-500 transition-colors"
+            title="Logout"
+          >
+            <LogOut size={20} />
+          </button>
+        </div>
       </header>
       
       <main className="max-w-md mx-auto p-4">
@@ -600,21 +616,153 @@ const Reminders = ({ lang }: { lang: Language }) => {
   );
 };
 
+const LoginPage = ({ onLogin, lang }: { onLogin: (user: any) => void, lang: Language }) => {
+  const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
+  const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
+  const t = translations[lang];
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError('');
+    setLoading(true);
+    try {
+      const res = await fetch('/api/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username, password })
+      });
+      const data = await res.json();
+      if (data.success) {
+        onLogin(data.user);
+      } else {
+        setError(data.message || 'Invalid credentials');
+      }
+    } catch (err) {
+      setError('Connection error');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-stone-50 p-4">
+      <motion.div 
+        initial={{ opacity: 0, scale: 0.95 }}
+        animate={{ opacity: 1, scale: 1 }}
+        className="w-full max-w-md bg-white p-8 rounded-3xl border border-stone-200 shadow-xl space-y-8"
+      >
+        <div className="text-center space-y-2">
+          <div className="w-16 h-16 bg-emerald-100 text-emerald-600 rounded-2xl flex items-center justify-center mx-auto">
+            <Lock size={32} />
+          </div>
+          <h1 className="text-2xl font-bold text-stone-900">HouseHelp Manager</h1>
+          <p className="text-stone-500">Please sign in to continue</p>
+        </div>
+
+        <form onSubmit={handleSubmit} className="space-y-6">
+          <div className="space-y-1">
+            <label className="text-xs font-bold text-stone-400 uppercase tracking-wider">Username</label>
+            <input 
+              required
+              type="text" 
+              value={username}
+              onChange={e => setUsername(e.target.value)}
+              className="w-full p-4 bg-stone-50 border border-stone-200 rounded-2xl focus:ring-2 focus:ring-emerald-500 outline-none transition-all"
+              placeholder="admin"
+            />
+          </div>
+
+          <div className="space-y-1">
+            <label className="text-xs font-bold text-stone-400 uppercase tracking-wider">Password</label>
+            <input 
+              required
+              type="password" 
+              value={password}
+              onChange={e => setPassword(e.target.value)}
+              className="w-full p-4 bg-stone-50 border border-stone-200 rounded-2xl focus:ring-2 focus:ring-emerald-500 outline-none transition-all"
+              placeholder="••••••••"
+            />
+          </div>
+
+          {error && (
+            <motion.p 
+              initial={{ opacity: 0, y: -10 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="text-sm text-rose-500 font-medium text-center"
+            >
+              {error}
+            </motion.p>
+          )}
+
+          <button 
+            disabled={loading}
+            type="submit"
+            className="w-full py-4 bg-emerald-600 text-white font-bold rounded-2xl hover:bg-emerald-700 shadow-lg shadow-emerald-200 transition-all active:scale-95 disabled:opacity-50 flex items-center justify-center gap-2"
+          >
+            {loading ? 'Signing in...' : (
+              <>
+                <LogIn size={20} />
+                Sign In
+              </>
+            )}
+          </button>
+        </form>
+
+        <div className="text-center">
+          <p className="text-xs text-stone-400">
+            Default credentials: <span className="font-mono font-bold">admin / admin123</span>
+          </p>
+        </div>
+      </motion.div>
+    </div>
+  );
+};
+
 // --- Main App ---
 
 export default function App() {
   const [lang, setLang] = useState<Language>('en');
+  const [user, setUser] = useState<any>(null);
+  const [initialized, setInitialized] = useState(false);
+
+  useEffect(() => {
+    const savedUser = localStorage.getItem('househelp_user');
+    if (savedUser) {
+      setUser(JSON.parse(savedUser));
+    }
+    setInitialized(true);
+  }, []);
+
+  const handleLogin = (userData: any) => {
+    setUser(userData);
+    localStorage.setItem('househelp_user', JSON.stringify(userData));
+  };
+
+  const handleLogout = () => {
+    setUser(null);
+    localStorage.removeItem('househelp_user');
+  };
+
+  if (!initialized) return null;
 
   return (
     <Router>
-      <Layout lang={lang} setLang={setLang}>
+      <Layout lang={lang} setLang={setLang} user={user} onLogout={handleLogout}>
         <Routes>
-          <Route path="/" element={<Dashboard lang={lang} />} />
-          <Route path="/workers" element={<WorkerList lang={lang} />} />
-          <Route path="/add" element={<WorkerForm lang={lang} mode="add" />} />
-          <Route path="/edit/:id" element={<WorkerForm lang={lang} mode="edit" />} />
-          <Route path="/worker/:id" element={<WorkerProfile lang={lang} />} />
-          <Route path="/reminders" element={<Reminders lang={lang} />} />
+          {!user ? (
+            <Route path="*" element={<LoginPage onLogin={handleLogin} lang={lang} />} />
+          ) : (
+            <>
+              <Route path="/" element={<Dashboard lang={lang} />} />
+              <Route path="/workers" element={<WorkerList lang={lang} />} />
+              <Route path="/add" element={<WorkerForm lang={lang} mode="add" />} />
+              <Route path="/edit/:id" element={<WorkerForm lang={lang} mode="edit" />} />
+              <Route path="/worker/:id" element={<WorkerProfile lang={lang} />} />
+              <Route path="/reminders" element={<Reminders lang={lang} />} />
+            </>
+          )}
         </Routes>
       </Layout>
     </Router>

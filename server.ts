@@ -32,7 +32,19 @@ db.exec(`
     payment_date TEXT,
     FOREIGN KEY (worker_id) REFERENCES workers (id) ON DELETE CASCADE
   );
+
+  CREATE TABLE IF NOT EXISTS users (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    username TEXT UNIQUE,
+    password TEXT
+  );
 `);
+
+// Seed Admin User if empty
+const userCount = db.prepare("SELECT COUNT(*) as count FROM users").get() as { count: number };
+if (userCount.count === 0) {
+  db.prepare("INSERT INTO users (username, password) VALUES (?, ?)").run('admin', 'admin123');
+}
 
 // Seed Demo Data if empty
 const workerCount = db.prepare("SELECT COUNT(*) as count FROM workers").get() as { count: number };
@@ -71,6 +83,17 @@ async function startServer() {
   const PORT = 3000;
 
   app.use(express.json());
+
+  // Auth API
+  app.post("/api/login", (req, res) => {
+    const { username, password } = req.body;
+    const user = db.prepare("SELECT * FROM users WHERE username = ? AND password = ?").get(username, password) as any;
+    if (user) {
+      res.json({ success: true, user: { id: user.id, username: user.username } });
+    } else {
+      res.status(401).json({ success: false, message: "Invalid credentials" });
+    }
+  });
 
   // API Routes
   app.get("/api/workers", (req, res) => {
